@@ -17,7 +17,6 @@ import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.Handler;
 import android.util.Log;
 import android.view.GestureDetector;
@@ -38,6 +37,7 @@ import com.etiennelawlor.imagegallery.library.activities.ImageGalleryActivity;
 import com.etiennelawlor.imagegallery.library.enums.PaletteColorType;
 import com.qualcomm.vuforia.CameraDevice;
 import com.qualcomm.vuforia.DataSet;
+import com.qualcomm.vuforia.HINT;
 import com.qualcomm.vuforia.ObjectTracker;
 import com.qualcomm.vuforia.STORAGE_TYPE;
 import com.qualcomm.vuforia.State;
@@ -55,8 +55,6 @@ import org.g29.anego2.data.models.LoadingDialogHandler;
 import org.g29.anego2.data.models.Texture;
 import org.g29.anego2.data.opengl.GLView;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Vector;
@@ -185,7 +183,7 @@ public class ImageTargets extends Activity implements ApplicationControl
     
     private void loadTextures()
     {
-        mTextures.add(Texture.loadTextureFromApk("Logs Side.png",
+        mTextures.add(Texture.loadTextureFromApk("textures/house.jpg",
                 getAssets()));
     }
     
@@ -299,7 +297,7 @@ public class ImageTargets extends Activity implements ApplicationControl
         int depthSize = 16;
         int stencilSize = 0;
         boolean translucent = Vuforia.requiresAlpha();
-        
+
         mGlView = new GLView(this);
         mGlView.init(translucent, depthSize, stencilSize);
         
@@ -339,6 +337,7 @@ public class ImageTargets extends Activity implements ApplicationControl
         TrackerManager tManager = TrackerManager.getInstance();
         ObjectTracker objectTracker = (ObjectTracker) tManager
             .getTracker(ObjectTracker.getClassType());
+
         if (objectTracker == null)
             return false;
         
@@ -352,7 +351,7 @@ public class ImageTargets extends Activity implements ApplicationControl
             mDatasetStrings.get(mCurrentDatasetSelectionIndex),
             STORAGE_TYPE.STORAGE_APPRESOURCE))
             return false;
-        
+
         if (!objectTracker.activateDataSet(mCurrentDataset))
             return false;
         
@@ -360,10 +359,6 @@ public class ImageTargets extends Activity implements ApplicationControl
         for (int count = 0; count < numTrackables; count++)
         {
             Trackable trackable = mCurrentDataset.getTrackable(count);
-            if(isExtendedTrackingActive())
-            {
-                trackable.startExtendedTracking();
-            }
             
             String name = "Current Dataset : " + trackable.getName();
             trackable.setUserData(name);
@@ -541,8 +536,11 @@ public class ImageTargets extends Activity implements ApplicationControl
         
         Tracker objectTracker = TrackerManager.getInstance().getTracker(
                 ObjectTracker.getClassType());
-        if (objectTracker != null)
+        if (objectTracker != null) {
+            Vuforia.setHint(HINT.HINT_MAX_SIMULTANEOUS_IMAGE_TARGETS, 2);
             objectTracker.start();
+        }
+
         
         return result;
     }

@@ -37,7 +37,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.IntBuffer;
 import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Vector;
 
 import javax.microedition.khronos.egl.EGLConfig;
@@ -66,9 +69,7 @@ public class AnegoRenderer implements GLSurfaceView.Renderer
     
     private int texSampler2DHandle;
 
-    private MeshObject mObject;
-
-    private float kBuildingScale = 12.0f;
+    private Map<String, MeshObject> mObjects;
 
     private Renderer mRenderer;
     
@@ -86,6 +87,7 @@ public class AnegoRenderer implements GLSurfaceView.Renderer
     {
         mActivity = activity;
         vuforiaAppSession = session;
+        mObjects = new HashMap<>();
     }
     
     
@@ -98,7 +100,6 @@ public class AnegoRenderer implements GLSurfaceView.Renderer
         
         // Call our function to render content
         renderFrame();
-
 
         GLES20.glFinish();
 
@@ -143,18 +144,25 @@ public class AnegoRenderer implements GLSurfaceView.Renderer
     // Function for initializing the renderer.
     private void initRendering()
     {
-        MeshObject object = new MeshObject();
-        String filename = "objects/tree.anego";
+        mRenderer = Renderer.getInstance();
+        String filename = "";
 
         try {
+            filename = "objects/house.anego";
             InputStream in = mActivity.getAssets().open(filename);
-            mObject = ParseUtils.ParseObject(object, in);
+            mObjects.put("chips", ParseUtils.ParseObject(new MeshObject(), in));
         } catch (IOException e) {
             Log.e("ParseUtils", "Could not open file " + filename);
         }
 
+        try {
+            filename = "objects/tree.anego";
+            InputStream in = mActivity.getAssets().open(filename);
+            mObjects.put("stones", ParseUtils.ParseObject(new MeshObject(), in));
+        } catch (IOException e) {
+            Log.e("ParseUtils", "Could not open file " + filename);
+        }
 
-        mRenderer = Renderer.getInstance();
         
         GLES20.glClearColor(0.0f, 0.0f, 0.0f, Vuforia.requiresAlpha() ? 0.0f
                 : 1.0f);
@@ -218,6 +226,10 @@ public class AnegoRenderer implements GLSurfaceView.Renderer
         {
             TrackableResult result = state.getTrackableResult(tIdx);
             Trackable trackable = result.getTrackable();
+
+            MeshObject mObject = mObjects.get(trackable.getName());
+
+            Log.e(LOGTAG, trackable.getName() + " " + tIdx);
             printUserData(trackable);
             Matrix44F modelViewMatrix_Vuforia = Tool
                 .convertPose2GLMatrix(result.getPose());
@@ -227,67 +239,56 @@ public class AnegoRenderer implements GLSurfaceView.Renderer
             
             // deal with the modelview and projection matrices
             float[] modelViewProjection = new float[16];
-            
-            if (!mActivity.isExtendedTrackingActive())
-            {
 
-                Matrix.translateM(modelViewMatrix, 0, 0.0f, 0.0f,
-                        230.0f);
+            Matrix.translateM(modelViewMatrix, 0, 0.0f, 0.0f,
+                    OBJECT_SCALE_FLOAT);
 
-                float angle = 90.0f;
-                Matrix.rotateM(modelViewMatrix, 0, angle, 1.0f, 0, 0);
+            float angle = 90.0f;
+            Matrix.rotateM(modelViewMatrix, 0, angle, 1.0f, 0, 0);
+            Matrix.rotateM(modelViewMatrix, 0, angle, 0, 1.0f, 0);
 
-                Matrix.scaleM(modelViewMatrix, 0, OBJECT_SCALE_FLOAT,
-                    OBJECT_SCALE_FLOAT, OBJECT_SCALE_FLOAT);
-            } else
-            {
-                Matrix.rotateM(modelViewMatrix, 0, 90.0f, 1.0f, 0, 0);
-                Matrix.scaleM(modelViewMatrix, 0, kBuildingScale,
-                    kBuildingScale, kBuildingScale);
-            }
+            Matrix.scaleM(modelViewMatrix, 0, OBJECT_SCALE_FLOAT * 2,
+                OBJECT_SCALE_FLOAT * 2, OBJECT_SCALE_FLOAT * 2);
 
             Matrix.multiplyMM(modelViewProjection, 0, vuforiaAppSession
                     .getProjectionMatrix().getData(), 0, modelViewMatrix, 0);
             
             // activate the shader program and bind the vertex/normal/tex coords
             GLES20.glUseProgram(shaderProgramID);
-            
-            if (!mActivity.isExtendedTrackingActive())
-            {
-                GLES20.glVertexAttribPointer(vertexHandle, 3, GLES20.GL_FLOAT,
-                    false, 0, mObject.getVertices());
-                GLES20.glVertexAttribPointer(normalHandle, 3, GLES20.GL_FLOAT,
-                    false, 0, mObject.getNormals());
-                GLES20.glVertexAttribPointer(textureCoordHandle, 2,
-                    GLES20.GL_FLOAT, false, 0, mObject.getTexCoords());
-                
-                GLES20.glEnableVertexAttribArray(vertexHandle);
-                GLES20.glEnableVertexAttribArray(normalHandle);
-                GLES20.glEnableVertexAttribArray(textureCoordHandle);
-                
-                // activate texture 0, bind it, and pass to shader
-                GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,
-                    mTextures.get(textureIndex).mTextureID[0]);
-                GLES20.glUniform1i(texSampler2DHandle, 0);
-                
-                // pass the model view matrix to the shader
-                GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false,
-                    modelViewProjection, 0);
-                
-                // finally draw the teapot
-                if(ImageTargets.MODELING) {
-                    GLES20.glDrawElements(GLES20.GL_TRIANGLES,
-                            mObject.getNumObjectIndex(), GLES20.GL_UNSIGNED_SHORT,
-                            mObject.getIndices());
-                }
 
-                
-                // disable the enabled arrays
-                GLES20.glDisableVertexAttribArray(vertexHandle);
-                GLES20.glDisableVertexAttribArray(normalHandle);
-                GLES20.glDisableVertexAttribArray(textureCoordHandle);
+            GLES20.glVertexAttribPointer(vertexHandle, 3, GLES20.GL_FLOAT,
+                false, 0, mObject.getVertices());
+            GLES20.glVertexAttribPointer(normalHandle, 3, GLES20.GL_FLOAT,
+                false, 0, mObject.getNormals());
+            GLES20.glVertexAttribPointer(textureCoordHandle, 2,
+                GLES20.GL_FLOAT, false, 0, mObject.getTexCoords());
+
+            GLES20.glEnableVertexAttribArray(vertexHandle);
+            GLES20.glEnableVertexAttribArray(normalHandle);
+            GLES20.glEnableVertexAttribArray(textureCoordHandle);
+
+            // activate texture 0, bind it, and pass to shader
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,
+                mTextures.get(textureIndex).mTextureID[0]);
+            GLES20.glUniform1i(texSampler2DHandle, 0);
+
+            // pass the model view matrix to the shader
+            GLES20.glUniformMatrix4fv(mvpMatrixHandle, 1, false,
+                modelViewProjection, 0);
+
+            // finally draw the teapot
+            if(ImageTargets.MODELING) {
+                GLES20.glDrawElements(GLES20.GL_TRIANGLES,
+                        mObject.getNumObjectIndex(), GLES20.GL_UNSIGNED_SHORT,
+                        mObject.getIndices());
             }
+
+            // disable the enabled arrays
+            GLES20.glDisableVertexAttribArray(vertexHandle);
+            GLES20.glDisableVertexAttribArray(normalHandle);
+            GLES20.glDisableVertexAttribArray(textureCoordHandle);
+
 
             RenderUtils.checkGLError("Render Frame");
             
@@ -358,8 +359,7 @@ public class AnegoRenderer implements GLSurfaceView.Renderer
             }
         }
 
-        Bitmap sb = Bitmap.createBitmap(bt, w, h, Bitmap.Config.ARGB_8888);
-        return sb;
+        return Bitmap.createBitmap(bt, w, h, Bitmap.Config.ARGB_8888);
     }
     
 }
